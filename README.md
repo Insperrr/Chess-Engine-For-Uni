@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # COMP2321: Coursework “CHESS FRAGMENTS”
 
 
@@ -117,3 +118,7 @@ You may wish to implement additional functions to support your agent in this gam
 Documentation: https://wolfdwyc.github.io/ChessMaker
 
 Source Code: https://github.com/WolfDWyc/ChessMaker
+=======
+# Chess-Engine-For-Uni
+This is a repo of my chess engine AI for my Comp 2321 Coursework
+>>>>>>> 5b194673ab51cfb3110349fc47dca49677fac3aa
