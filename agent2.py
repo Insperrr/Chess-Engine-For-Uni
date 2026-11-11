@@ -1,7 +1,7 @@
 import random
 import time
 from extension.board_utils import list_legal_moves_for, take_notes, copy_piece_move
-from extension.board_rules import get_result
+from extension.board_rules import get_result, only_2kings, cannot_move
 from chessmaker.chess.base import Player
 from chessmaker.chess.results import no_kings, checkmate
 
@@ -42,6 +42,7 @@ def general_stratergy(board, player, var, deadline):
 
     while True:
         try:
+            print(f"\nSEARCHING DEPTH {depth}")
             iterative_best_move = None
             iterative_best_score = float("-inf")
             alpha = float("-inf")
@@ -65,15 +66,19 @@ def general_stratergy(board, player, var, deadline):
                 beta,
                 deadline
                 )
-                print(piece.name, move_opt, current_score)
                 
                 if current_score > iterative_best_score:
                     iterative_best_move = (piece, move_opt)
                     iterative_best_score = current_score
                 alpha = max(alpha, iterative_best_score)
-    
+
+            print(
+                f"DEPTH {depth} COMPLETE | "
+                f"BEST MOVE: {iterative_best_move} | "
+                f"SCORE: {iterative_best_score}"
+            )   
+
             depth += 1
-            
             if iterative_best_move is not None:
                 best_move = iterative_best_move
                 best_score = iterative_best_score
@@ -85,10 +90,6 @@ def general_stratergy(board, player, var, deadline):
 
     if best_move:
         piece, move_opt = best_move
-        '''take_notes(piece)
-        take_notes(move_opt)
-        take_notes(best_score)
-        take_notes("Turn " + str(var[0]))'''
 
         print("SELECTED PIECE:", piece)
         print("SELECTED MOVE:", move_opt)
@@ -116,6 +117,8 @@ def minimax(board, current_player, maximising_player, depth, alpha, beta, deadli
     
     if not legal_moves:
         return evaluate_board(board, maximising_player)
+    else:
+        legal_moves = sort_legal(board, current_player, legal_moves)
 
     opponent = get_opponent(board, current_player)
 
@@ -148,12 +151,8 @@ def minimax(board, current_player, maximising_player, depth, alpha, beta, deadli
         return minimum
 
 
-def get_piece_value(piece):
-    return PIECE_VALUES.get(piece.name, 0)
-
-
 def check_if_board_has_won(board):
-    for rf in [no_kings, checkmate]:
+    for rf in [no_kings, checkmate, cannot_move, only_2kings]:  
         res = rf(board)
         if res:
             return res
@@ -197,7 +196,6 @@ def evaluate_board(board, player):
 
 
 def sort_legal(board, player, legal):
-    #Has time O(mp + m log m)
     scored_moves = []
 
     for piece, move_opt in legal:
@@ -208,18 +206,25 @@ def sort_legal(board, player, legal):
     return [(piece, move_opt) for score, piece, move_opt in scored_moves]
 
 
-def evaluate_move(board, player, piece, move_opt) -> int:
-    previous_score = evaluate_board(board, player)
+def evaluate_move(board, player, piece, move_opt):
+    score = 0
 
-    temp_board = apply_move_to_copy(board, piece, move_opt)
+    for capture_position in move_opt.captures:
+        square = board[capture_position]
 
-    if temp_board is None:
-        return float("-inf")
+        if square is not None:
+            target = square.piece
 
-    new_score = evaluate_board(temp_board, player)
+            attacker_value = PIECE_VALUES[piece.name]
+            target_value = PIECE_VALUES[target.name]
 
-    return new_score - previous_score
+            score += 10 * target_value - attacker_value
 
+    if move_opt.extra.get("promote"):
+        promoted_piece = move_opt.extra["promote"]
+        score += PIECE_VALUES[promoted_piece] - PIECE_VALUES["Pawn"]
+
+    return score
 
 def apply_move_to_copy(board, piece, move_opt):
     new_board = board.clone()
