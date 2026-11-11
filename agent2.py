@@ -1,6 +1,9 @@
 import random
 import time
 from extension.board_utils import list_legal_moves_for, take_notes, copy_piece_move
+from extension.board_rules import get_result
+from chessmaker.chess.base import Player
+from chessmaker.chess.results import no_kings, checkmate
 
 class SearchTimeout(Exception):
     pass
@@ -25,10 +28,7 @@ def agent(board, player, var):
     piece, move_opt = None, None
     print(f"Ply: {var[0]}")
     
-    if player.name == "white":
-        piece, move_opt = general_stratergy(board, player, var, deadline)
-    else:
-        piece, move_opt = general_stratergy(board, player, var, deadline)
+    piece, move_opt = general_stratergy(board, player, var, deadline)
     return piece, move_opt
 
 
@@ -64,12 +64,13 @@ def general_stratergy(board, player, var, deadline):
                 alpha,
                 beta,
                 deadline
-            )
+                )
+                print(piece.name, move_opt, current_score)
                 
-                if current_score > best_score:
+                if current_score > iterative_best_score:
                     iterative_best_move = (piece, move_opt)
                     iterative_best_score = current_score
-                alpha = max(alpha, best_score)
+                alpha = max(alpha, iterative_best_score)
     
             depth += 1
             
@@ -84,10 +85,10 @@ def general_stratergy(board, player, var, deadline):
 
     if best_move:
         piece, move_opt = best_move
-        take_notes(piece)
+        '''take_notes(piece)
         take_notes(move_opt)
         take_notes(best_score)
-        take_notes("Turn " + str(var[0]))
+        take_notes("Turn " + str(var[0]))'''
 
         print("SELECTED PIECE:", piece)
         print("SELECTED MOVE:", move_opt)
@@ -101,6 +102,12 @@ def general_stratergy(board, player, var, deadline):
 def minimax(board, current_player, maximising_player, depth, alpha, beta, deadline) -> int:
     if time.perf_counter() >= deadline:
         raise SearchTimeout
+
+    result = check_if_board_has_won(board)
+
+    #This is to unwind the recursion quicker if an endstate has been found. 
+    if result:
+        return evaluate_board(board, maximising_player)
 
     if depth == 0:
         return evaluate_board(board, maximising_player)
@@ -145,9 +152,40 @@ def get_piece_value(piece):
     return PIECE_VALUES.get(piece.name, 0)
 
 
-def evaluate_board(board, player):
-    score = 0
+def check_if_board_has_won(board):
+    for rf in [no_kings, checkmate]:
+        res = rf(board)
+        if res:
+            return res
+    return None
 
+
+def evaluate_board(board, player):
+    '''Evaluates the board from the perspective of the passed
+    in player. Making note not to get confused. 
+    We always pass in MAX player in Minimax for consistency'''
+    
+    score = 0
+    MATESCORE = 10000
+    
+    #Checkmate eval
+    result = check_if_board_has_won(board)
+
+    if result:
+        result = result.lower()
+
+        if "white loses" in result:
+            winner = Player("black")
+        elif "black loses" in result:
+            winner = Player("white")
+        else:
+            return 0
+    
+        if winner.name == player.name:
+            return MATESCORE
+        return -MATESCORE
+
+    #General Board Eval
     for piece in board.get_pieces():
         value = PIECE_VALUES.get(piece.name)
         if piece.player == player:
