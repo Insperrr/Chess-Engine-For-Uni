@@ -1,5 +1,10 @@
 import random
+import time
 from extension.board_utils import list_legal_moves_for, take_notes, copy_piece_move
+
+class SearchTimeout(Exception):
+    pass
+
 
 #In Pawns not centipawns
 PIECE_VALUES = {
@@ -13,43 +18,72 @@ PIECE_VALUES = {
 
 
 def agent(board, player, var):
+    start_time = time.perf_counter()
+    thinking_time = var[1]
+
+    deadline = start_time + (thinking_time * 0.85)
     piece, move_opt = None, None
     print(f"Ply: {var[0]}")
     
     if player.name == "white":
-        piece, move_opt = general_stratergy(board, player, var)
+        piece, move_opt = general_stratergy(board, player, var, deadline)
     else:
-        piece, move_opt = general_stratergy(board, player, var)
+        piece, move_opt = general_stratergy(board, player, var, deadline)
     return piece, move_opt
 
 
-def general_stratergy(board, player, var):
+def general_stratergy(board, player, var, deadline):
     legal_moves = sort_legal(board, player, list_legal_moves_for(board, player))
     opponent = get_opponent(board, player)
 
-    best_score = float("-inf")
     best_move = None
-    alpha = float("-inf")
-    beta = float("inf")
+    best_score = float("-inf")
+    depth = 1 
 
-    for piece, move_opt in legal_moves:
+    while True:
+        try:
+            iterative_best_move = None
+            iterative_best_score = float("-inf")
+            alpha = float("-inf")
+            beta = float("inf")
 
-        temp_board = apply_move_to_copy(board, piece, move_opt)
+            for piece, move_opt in legal_moves:
+                if time.perf_counter() >= deadline:
+                    raise SearchTimeout
+                
+                temp_board = apply_move_to_copy(board, piece, move_opt) 
 
-        if temp_board is None:
-            continue
+                if temp_board is None:
+                    continue
+
+                current_score = minimax(
+                temp_board,
+                opponent,
+                player,
+                depth - 1,
+                alpha,
+                beta,
+                deadline
+            )
+                
+                if current_score > best_score:
+                    iterative_best_move = (piece, move_opt)
+                    iterative_best_score = current_score
+                alpha = max(alpha, best_score)
     
-        current_score = minimax(temp_board, opponent, player, 3, alpha, beta)
-
-        if current_score > best_score:
-            best_move = (piece, move_opt)
-            best_score = current_score
-
-        alpha = max(alpha, best_score)
+            depth += 1
+            
+            if iterative_best_move is not None:
+                best_move = iterative_best_move
+                best_score = iterative_best_score
+        
+        except SearchTimeout:
+            print("Search Timeout at depth: " + str(depth))
+            print(f"Search Timeout at time: {time.perf_counter():.3f} / {deadline:.3f}")
+            break
 
     if best_move:
         piece, move_opt = best_move
-
         take_notes(piece)
         take_notes(move_opt)
         take_notes(best_score)
@@ -61,11 +95,13 @@ def general_stratergy(board, player, var):
         print("SELECTED SCORE:", best_score)
 
         return piece, move_opt
-
     return None, None
 
 
-def minimax(board, current_player, maximising_player, depth, alpha, beta) -> int:
+def minimax(board, current_player, maximising_player, depth, alpha, beta, deadline) -> int:
+    if time.perf_counter() >= deadline:
+        raise SearchTimeout
+
     if depth == 0:
         return evaluate_board(board, maximising_player)
 
@@ -81,7 +117,7 @@ def minimax(board, current_player, maximising_player, depth, alpha, beta) -> int
         
         for piece, move_opt in legal_moves:
             temp_board = apply_move_to_copy(board, piece, move_opt)
-            score = minimax(temp_board, opponent, maximising_player, depth - 1, alpha, beta)
+            score = minimax(temp_board, opponent, maximising_player, depth - 1, alpha, beta, deadline)
             maximum = max(maximum, score)
             alpha = max(alpha, maximum)
 
@@ -95,7 +131,7 @@ def minimax(board, current_player, maximising_player, depth, alpha, beta) -> int
         
         for piece, move_opt in legal_moves:
             temp_board = apply_move_to_copy(board, piece, move_opt)
-            score = minimax(temp_board, opponent, maximising_player, depth - 1, alpha, beta)
+            score = minimax(temp_board, opponent, maximising_player, depth - 1, alpha, beta, deadline)
             minimum = min(minimum, score)
             beta = min(beta, minimum)
 
@@ -118,10 +154,12 @@ def evaluate_board(board, player):
             score += value
         else:
             score -= value
+
     return score
 
 
 def sort_legal(board, player, legal):
+    #Has time O(mp + m log m)
     scored_moves = []
 
     for piece, move_opt in legal:
