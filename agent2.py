@@ -8,6 +8,64 @@ from chessmaker.chess.results import no_kings, checkmate
 class SearchTimeout(Exception):
     pass
 
+PAWN_TABLE = [
+    [0.0, 0.0, 0.0, 0.0, 0.0],
+    [0.1, 0.1, 0.2, 0.1, 0.1],
+    [0.2, 0.2, 0.3, 0.2, 0.2],
+    [0.3, 0.3, 0.4, 0.3, 0.3],
+    [0.4, 0.4, 0.5, 0.4, 0.4]
+]
+
+KNIGHT_TABLE = [
+    [0.0, 0.1, 0.1, 0.1, 0.0],
+    [0.1, 0.2, 0.3, 0.2, 0.1],
+    [0.1, 0.3, 0.4, 0.3, 0.1],
+    [0.1, 0.2, 0.3, 0.2, 0.1],
+    [0.0, 0.1, 0.1, 0.1, 0.0]
+]
+
+BISHOP_TABLE = [
+    [0.0, 0.1, 0.1, 0.1, 0.0],
+    [0.1, 0.2, 0.2, 0.2, 0.1],
+    [0.1, 0.2, 0.3, 0.2, 0.1],
+    [0.1, 0.2, 0.2, 0.2, 0.1],
+    [0.0, 0.1, 0.1, 0.1, 0.0]
+]
+
+RIGHT_TABLE = [
+    [0.2, 0.2, 0.2, 0.2, 0.2],
+    [0.1, 0.1, 0.1, 0.1, 0.1],
+    [0.1, 0.1, 0.1, 0.1, 0.1],
+    [0.1, 0.1, 0.1, 0.1, 0.1],
+    [0.2, 0.2, 0.2, 0.2, 0.2]
+]
+
+QUEEN_TABLE = [
+    [0.0, 0.1, 0.1, 0.1, 0.0],
+    [0.1, 0.2, 0.2, 0.2, 0.1],
+    [0.1, 0.2, 0.3, 0.2, 0.1],
+    [0.1, 0.2, 0.2, 0.2, 0.1],
+    [0.0, 0.1, 0.1, 0.1, 0.0]
+]
+
+KING_TABLE = [
+    [0.3, 0.2, 0.1, 0.2, 0.3],
+    [0.2, 0.1, 0.0, 0.1, 0.2],
+    [0.1, 0.0, 0.0, 0.0, 0.1],
+    [0.2, 0.1, 0.0, 0.1, 0.2],
+    [0.3, 0.2, 0.1, 0.2, 0.3]
+]
+
+POSITION_TABLES = {
+    "Pawn": PAWN_TABLE,
+    "Knight": KNIGHT_TABLE,
+    "Bishop": BISHOP_TABLE,
+    "Right": RIGHT_TABLE,
+    "Queen": QUEEN_TABLE,
+    "King": KING_TABLE
+}
+
+POSITION_WEIGHT = 0.25
 
 #In Pawns not centipawns
 PIECE_VALUES = {
@@ -66,6 +124,7 @@ def general_stratergy(board, player, var, deadline):
                 beta,
                 deadline
                 )
+                print(f"{piece.name}: {piece.position} -> {current_score}")
                 
                 if current_score > iterative_best_score:
                     iterative_best_move = (piece, move_opt)
@@ -77,7 +136,7 @@ def general_stratergy(board, player, var, deadline):
                 f"BEST MOVE: {iterative_best_move} | "
                 f"SCORE: {iterative_best_score}"
             )   
-
+        
             depth += 1
             if iterative_best_move is not None:
                 best_move = iterative_best_move
@@ -107,19 +166,21 @@ def minimax(board, current_player, maximising_player, depth, alpha, beta, deadli
     result = check_if_board_has_won(board)
 
     #This is to unwind the recursion quicker if an endstate has been found. 
-    if result:
-        return evaluate_board(board, maximising_player)
-
-    if depth == 0:
+    if result or depth == 0:
         return evaluate_board(board, maximising_player)
 
     legal_moves = list_legal_moves_for(board, current_player)
+    if legal_moves == []:
+        print("NO MORE LEGAL MOVES LMAO")
     
     if not legal_moves:
-        return evaluate_board(board, maximising_player)
-    else:
-        legal_moves = sort_legal(board, current_player, legal_moves)
+        if current_player == maximising_player:
+            return -10000
+        else:
+            return 10000
 
+    legal_moves = sort_legal(board, current_player, legal_moves)
+    
     opponent = get_opponent(board, current_player)
 
     if current_player == maximising_player:
@@ -150,6 +211,34 @@ def minimax(board, current_player, maximising_player, depth, alpha, beta, deadli
 
         return minimum
 
+def get_position_value(piece):
+    row, column = piece.position
+    if piece.player.name == "white":
+        row = 4 - row
+
+    table = POSITION_TABLES.get(piece.name)
+
+    if table is None:
+        return 0
+    return table[row][column]
+
+def get_central_bonus(piece):
+    row, col = piece.position
+
+    distance = abs(2 - row) + abs(2 - col)
+
+    return max(0, 0.3 - (distance * 0.1))
+
+def get_development_bonus(piece):
+    if piece.name not in ["Knight", "Bishop"]:
+        return 0
+
+    starting_row = 4 if piece.player.name == "white" else 0
+
+    if piece.position[0] != starting_row:
+        return 0.3
+
+    return 0
 
 def check_if_board_has_won(board):
     for rf in [no_kings, checkmate, cannot_move, only_2kings]:  
@@ -183,14 +272,27 @@ def evaluate_board(board, player):
         if winner.name == player.name:
             return MATESCORE
         return -MATESCORE
+    
+    score = 0
 
-    #General Board Eval
     for piece in board.get_pieces():
-        value = PIECE_VALUES.get(piece.name)
+        value = PIECE_VALUES[piece.name]
+        position_value = get_position_value(piece)
+
+        central_bonus = get_central_bonus(piece)
+        development_bonus = get_development_bonus(piece)
+
+        total_value = (
+            value
+            + (position_value * 0.5)
+            + central_bonus
+            + development_bonus
+        )
+
         if piece.player == player:
-            score += value
+            score += total_value
         else:
-            score -= value
+            score -= total_value
 
     return score
 
