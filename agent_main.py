@@ -91,13 +91,27 @@ def agent(board, player, var):
 
 
 def general_stratergy(board, player, var, deadline):
-    legal_moves = sort_legal(board, player, list_legal_moves_for(board, player))
-    opponent = get_opponent(board, player)
+    depth = 1 
+    best_move, best_score = find_best_move(board, player, deadline, depth)
 
+    if best_move:
+        piece, move_opt = best_move
+        print("SELECTED PIECE:", piece)
+        print("SELECTED MOVE:", move_opt)
+        print("SELECTED DESTINATION:", move_opt.position)
+        print("SELECTED SCORE:", best_score)
+
+        return piece, move_opt
+    return None, None
+
+
+def find_best_move(board, player, deadline, depth):
     best_move = None
     best_score = float("-inf")
-    depth = 1 
-
+    opponent = get_opponent(board, player)
+    legal_moves = list_legal_moves_for(board, player)
+    legal_moves = sort_legal(board, player, legal_moves)
+    
     while True:
         try:
             print(f"\nSEARCHING DEPTH {depth}")
@@ -105,16 +119,16 @@ def general_stratergy(board, player, var, deadline):
             iterative_best_score = float("-inf")
             alpha = float("-inf")
             beta = float("inf")
-
+        
             for piece, move_opt in legal_moves:
                 if time.perf_counter() >= deadline:
                     raise SearchTimeout
                 
                 temp_board = apply_move_to_copy(board, piece, move_opt) 
-
+        
                 if temp_board is None:
                     continue
-
+        
                 current_score = minimax(
                 temp_board,
                 opponent,
@@ -124,13 +138,16 @@ def general_stratergy(board, player, var, deadline):
                 beta,
                 deadline
                 )
-                print(f"{piece.name}: {piece.position} -> {current_score}")
+                print(
+                        f"{piece.name}: {piece.position} -> "
+                        f"{move_opt.position} | Score: {current_score}"
+                    )
                 
                 if current_score > iterative_best_score:
                     iterative_best_move = (piece, move_opt)
                     iterative_best_score = current_score
                 alpha = max(alpha, iterative_best_score)
-
+        
             print(
                 f"DEPTH {depth} COMPLETE | "
                 f"BEST MOVE: {iterative_best_move} | "
@@ -141,22 +158,12 @@ def general_stratergy(board, player, var, deadline):
             if iterative_best_move is not None:
                 best_move = iterative_best_move
                 best_score = iterative_best_score
-        
+
         except SearchTimeout:
             print("Search Timeout at depth: " + str(depth))
             print(f"Search Timeout at time: {time.perf_counter():.3f} / {deadline:.3f}")
             break
-
-    if best_move:
-        piece, move_opt = best_move
-
-        print("SELECTED PIECE:", piece)
-        print("SELECTED MOVE:", move_opt)
-        print("SELECTED DESTINATION:", move_opt.position)
-        print("SELECTED SCORE:", best_score)
-
-        return piece, move_opt
-    return None, None
+    return (best_move, best_score)
 
 
 def minimax(board, current_player, maximising_player, depth, alpha, beta, deadline) -> int:
@@ -210,6 +217,7 @@ def minimax(board, current_player, maximising_player, depth, alpha, beta, deadli
                 break
 
         return minimum
+
 
 def get_position_value(piece):
     row, column = piece.position
@@ -307,7 +315,7 @@ def sort_legal(board, player, legal):
     scored_moves.sort(key=lambda x: x[0], reverse=True)
     return [(piece, move_opt) for score, piece, move_opt in scored_moves]
 
-
+#Returns a score for a piece based on attacking options
 def evaluate_move(board, player, piece, move_opt):
     score = 0
 
