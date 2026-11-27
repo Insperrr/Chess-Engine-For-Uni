@@ -65,14 +65,12 @@ POSITION_TABLES = {
     "King": KING_TABLE
 }
 
-POSITION_WEIGHT = 0.25
-
 #In Pawns not centipawns
 PIECE_VALUES = {
-    "Pawn": 1,
-    "Knight": 3,
-    "Bishop": 3,
-    "Right": 6,
+    "Pawn": 1.75,
+    "Knight": 2.8,
+    "Bishop": 3.0,
+    "Right": 8.5,
     "Queen": 9,
     "King": 100
 }
@@ -110,7 +108,7 @@ def find_best_move(board, player, deadline, depth):
     best_score = float("-inf")
     opponent = get_opponent(board, player)
     legal_moves = list_legal_moves_for(board, player)
-    legal_moves = sort_legal(board, player, legal_moves)
+    legal_moves = sort_legal(board, legal_moves)
     
     while True:
         try:
@@ -166,7 +164,7 @@ def find_best_move(board, player, deadline, depth):
     return (best_move, best_score)
 
 
-def minimax(board, current_player, maximising_player, depth, alpha, beta, deadline) -> int:
+def minimax(board, current_player, maximising_player, depth, alpha, beta, deadline) -> float:
     if time.perf_counter() >= deadline:
         raise SearchTimeout
 
@@ -177,17 +175,16 @@ def minimax(board, current_player, maximising_player, depth, alpha, beta, deadli
         return evaluate_board(board, maximising_player)
 
     legal_moves = list_legal_moves_for(board, current_player)
-    if legal_moves == []:
-        print("NO MORE LEGAL MOVES LMAO")
     
-    if not legal_moves:
+    if legal_moves == [] or not legal_moves:
+        print("NO MORE LEGAL MOVES LMAO")
         if current_player == maximising_player:
             return -10000
         else:
             return 10000
 
-    legal_moves = sort_legal(board, current_player, legal_moves)
-    
+    legal_moves = sort_legal(board, legal_moves)
+
     opponent = get_opponent(board, current_player)
 
     if current_player == maximising_player:
@@ -232,19 +229,18 @@ def get_position_value(piece):
 
 def get_central_bonus(piece):
     row, col = piece.position
-
     distance = abs(2 - row) + abs(2 - col)
 
-    return max(0, 0.3 - (distance * 0.1))
+    return max(0, 0.2 - (distance * 0.05))
 
 def get_development_bonus(piece):
-    if piece.name not in ["Knight", "Bishop"]:
+    if piece.name not in ["Knight", "Bishop", "Right", "Queen"]:
         return 0
 
     starting_row = 4 if piece.player.name == "white" else 0
 
     if piece.position[0] != starting_row:
-        return 0.3
+        return 0.2
 
     return 0
 
@@ -254,7 +250,6 @@ def check_if_board_has_won(board):
         if res:
             return res
     return None
-
 
 def evaluate_board(board, player):
     '''Evaluates the board from the perspective of the passed
@@ -292,7 +287,7 @@ def evaluate_board(board, player):
 
         total_value = (
             value
-            + (position_value * 0.5)
+            + (position_value * 0.7)
             + central_bonus
             + development_bonus
         )
@@ -305,30 +300,35 @@ def evaluate_board(board, player):
     return score
 
 
-def sort_legal(board, player, legal):
+def sort_legal(board, legal):
     scored_moves = []
 
     for piece, move_opt in legal:
-        score = evaluate_move(board, player, piece, move_opt)
+        score = evaluate_move(board, piece, move_opt)
         scored_moves.append((score, piece, move_opt))
     
     scored_moves.sort(key=lambda x: x[0], reverse=True)
     return [(piece, move_opt) for score, piece, move_opt in scored_moves]
 
 #Returns a score for a piece based on attacking options
-def evaluate_move(board, player, piece, move_opt):
+def evaluate_move(board, piece, move_opt):
     score = 0
 
     for capture_position in move_opt.captures:
         square = board[capture_position]
 
-        if square is not None:
-            target = square.piece
+        if square is None:
+            continue
 
-            attacker_value = PIECE_VALUES[piece.name]
-            target_value = PIECE_VALUES[target.name]
+        target = square.piece
 
-            score += 10 * target_value - attacker_value
+        if target.player == piece.player:
+            continue
+
+        attacker_value = PIECE_VALUES[piece.name]
+        target_value = PIECE_VALUES[target.name]
+
+        score += 10 * target_value - attacker_value
 
     if move_opt.extra.get("promote"):
         promoted_piece = move_opt.extra["promote"]

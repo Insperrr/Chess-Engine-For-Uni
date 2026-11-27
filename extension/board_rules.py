@@ -5,7 +5,7 @@ from chessmaker.chess.results import no_kings, checkmate
 
 
 THINKING_TIME_BUDGET = 14 # (secs)
-GAME_TIME_BUDGET = 600 # (secs)
+GAME_TIME_BUDGET = 700 # (secs)
 
 def _position_key(board):
     pieces = []

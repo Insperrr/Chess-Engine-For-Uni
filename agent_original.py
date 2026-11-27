@@ -1,7 +1,7 @@
 import random
 from extension.board_utils import list_legal_moves_for, take_notes
 
-def agent(board, player, var):
+def opponent(board, player, var):
     """"
     This is an example of your designed Agent
 
